@@ -62,3 +62,26 @@ make_export_attribute(Exports) ->
 make_function(Key, Value) ->
     Constant = erl_syntax:clause([], none, [erl_syntax:abstract(Value)]),
     erl_syntax:function(erl_syntax:atom(Key), [Constant]).
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-compile(export_all).
+
+assert_prop_equals(ModName, Props) ->
+    ?debugFmt("Will try to load mod ~p with props ~p~n", [ModName, Props]),
+    ok = sidejob_config:load_config(ModName, Props),
+    [?assertEqual(apply(ModName, Key, []), proplists:get_value(Key, Props))
+     || Key <- proplists:get_keys(Props)].
+
+load_config_test() ->
+    ModNames = [ list_to_atom("load_config_test_mod_"++integer_to_list(N))
+                              || N <- lists:seq(1,3) ],
+    PropLists = [
+            [{key1, 1}, {key2, [1,2,3]}, {key3, value3}, {key4, {value, 4}}],
+            [{key1, 42}, {key2, [3,2,1]}, {key3, not_value3}, {key4, {value, four}}],
+            [{one, one}, {two, [2]}, {three, "three"}],
+            [{one, "uno"}, {two, dos}, {three, tres}]
+            ],
+    [ assert_prop_equals(ModName, Props) || ModName <- ModNames, Props <- PropLists].
+
+-endif.
