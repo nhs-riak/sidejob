@@ -86,7 +86,7 @@ start_link(RegName, ResName, Id, ETS, StatsName, Mod) ->
 
 init([ResName, Id, ETS, StatsName, Mod]) ->
     %% TODO: Add ability to pass args
-    case Mod:init([ResName]) of
+    case Mod:init([ResName, Id]) of
         {ok, ModState} ->
             Exports = proplists:get_value(exports, Mod:module_info()),
             Usage = case lists:member({current_usage, 1}, Exports) of

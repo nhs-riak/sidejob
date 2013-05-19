@@ -37,6 +37,7 @@
          terminate/2, code_change/3]).
 
 -record(state, {name,
+                ets,
                 children=sets:new(),
                 spawned=0,
                 died=0}).
@@ -51,17 +52,41 @@
                                                            {error, overload} |
                                                            {error, term()}.
 start_child(Name, Mod, Fun, Args) ->
-    %% _ = Name,
-    %% apply(Mod, Fun, Args).
-    case sidejob:call(Name, {start_child, Mod, Fun, Args}, infinity) of
-    %% case sidejob:unbounded_call(Name, {start_child, Mod, Fun, Args}, infinity) of
-    %% case sidejob:unbounded_cast(Name, {start_child, Mod, Fun, Args}) of
-        overload ->
+    case available(Name) of
+        none ->
             {error, overload};
-        Other ->
-            %% erlang:yield(),
-            Other
+        Id ->
+            ETS = element(Id+1, Name:worker_ets()),
+            Result = apply(Mod, Fun, Args),
+            Reply = case Result of
+                        {ok, Pid} when is_pid(Pid) ->
+                            ets:insert(ETS, {Pid}),
+                            Result;
+                        {ok, Pid, _Info} when is_pid(Pid) ->
+                            ets:insert(ETS, {Pid}),
+                            Result;
+                        ignore ->
+                            {ok, undefined};
+                        {error, _} ->
+                            Result;
+                        Error ->
+                            {error, Error}
+                    end,
+            Reply
     end.
+
+%% start_child(Name, Mod, Fun, Args) ->
+%%     %% _ = Name,
+%%     %% apply(Mod, Fun, Args).
+%%     case sidejob:call(Name, {start_child, Mod, Fun, Args}, infinity) of
+%%     %% case sidejob:unbounded_call(Name, {start_child, Mod, Fun, Args}, infinity) of
+%%     %% case sidejob:unbounded_cast(Name, {start_child, Mod, Fun, Args}) of
+%%         overload ->
+%%             {error, overload};
+%%         Other ->
+%%             %% erlang:yield(),
+%%             Other
+%%     end.
 
 -spec spawn(resource(), function()) -> {ok, pid()} | {error, overload}.
 spawn(Name, Fun) ->
@@ -98,9 +123,11 @@ which_children(Name) ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([Name]) ->
+init([Name, Id]) ->
     process_flag(trap_exit, true),
-    {ok, #state{name=Name}}.
+    schedule_tick(),
+    ETS = element(Id, Name:worker_ets()),
+    {ok, #state{name=Name, ets=ETS}}.
 
 handle_call(get_children, _From, State=#state{children=Children}) ->
     {reply, sets:to_list(Children), State};
@@ -187,6 +214,11 @@ handle_info({'EXIT', Pid, Reason}, State=#state{children=Children,
             {stop, Reason, State}
     end;
 
+handle_info(tick, State) ->
+    State2 = tick(State),
+    schedule_tick(),
+    {noreply, State2};
+
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -214,3 +246,52 @@ add_child(Pid, State=#state{children=Children, spawned=Spawned}) ->
     Children2 = sets:add_element(Pid, Children),
     Spawned2 = Spawned + 1,
     State#state{children=Children2, spawned=Spawned2}.
+
+
+%%%===================================================================
+%%% Alternate approach
+%%%===================================================================
+
+schedule_tick() ->
+    erlang:send_after(1000, self(), tick).
+
+tick(State=#state{ets=ETS}) ->
+    L = ets:tab2list(ETS),
+    Dead = [Pid || {Pid} <- L,
+                   is_pid(Pid),
+                   not is_process_alive(Pid)],
+    [ets:delete(ETS, Pid) || Pid <- Dead],
+    State.
+
+%% Find an available worker or return none if all workers at limit
+available(Name) ->
+    ETS = Name:worker_ets(),
+    Width = Name:width(),
+    Limit = Name:worker_limit(),
+    Scheduler = erlang:system_info(scheduler_id),
+    Worker = Scheduler rem Width,
+    case is_available(ETS, Limit, Worker) of
+        true ->
+            Worker;
+        false ->
+            available(Name, ETS, Width, Limit, Worker+1, Worker)
+    end.
+
+available(Name, _ETS, _Width, _Limit, End, End) ->
+    ets:update_counter(Name:stats_ets(), rejected, 1),
+    none;
+available(Name, ETS, Width, Limit, X, End) ->
+    Worker = X rem Width,
+    case is_available(ETS, Limit, Worker) of
+        false ->
+            available(Name, ETS, Width, Limit, Worker+1, End);
+        true ->
+            Worker
+    end.
+
+is_available(WETS, Limit, Worker) ->
+    ETS = element(Worker+1, WETS),
+    ets:info(ETS, size) < Limit.
+
+%% worker_reg_name(Name, Id) ->
+%%     element(Id+1, Name:workers()).
