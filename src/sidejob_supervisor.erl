@@ -27,6 +27,7 @@
 
 %% API
 -export([start_child/4, spawn/2, spawn/4, which_children/1]).
+-export([spawn2/2, spawn3/2]).
 
 %% sidejob_worker callbacks
 -export([current_usage/1, rate/1]).
@@ -50,10 +51,15 @@
                                                            {error, overload} |
                                                            {error, term()}.
 start_child(Name, Mod, Fun, Args) ->
+    %% _ = Name,
+    %% apply(Mod, Fun, Args).
     case sidejob:call(Name, {start_child, Mod, Fun, Args}, infinity) of
+    %% case sidejob:unbounded_call(Name, {start_child, Mod, Fun, Args}, infinity) of
+    %% case sidejob:unbounded_cast(Name, {start_child, Mod, Fun, Args}) of
         overload ->
             {error, overload};
         Other ->
+            %% erlang:yield(),
             Other
     end.
 
@@ -65,6 +71,17 @@ spawn(Name, Fun) ->
         Other ->
             Other
     end.
+
+spawn2(Name, Fun) ->
+    case sidejob:unbounded_call(Name, {spawn, Fun}, infinity) of
+        overload ->
+            {error, overload};
+        Other ->
+            Other
+    end.
+
+spawn3(Name, Fun) ->
+    sidejob:unbounded_cast(Name, {spawn, self(), Fun}).
 
 -spec spawn(resource(), module(), atom(), term()) -> {ok, pid()} |
                                                      {error, overload}.
@@ -116,6 +133,44 @@ handle_call({spawn, Fun}, _From, State) ->
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
+
+handle_cast({start_child, Mod, Fun, Args}, State) ->
+    %% Result = (catch apply(Mod, Fun, Args)),
+    Result = apply(Mod, Fun, Args),
+    State2 = case Result of
+                 {ok, Pid} when is_pid(Pid) ->
+                     add_child(Pid, State);
+                 {ok, Pid, _Info} when is_pid(Pid) ->
+                     add_child(Pid, State);
+                 _ ->
+                     State
+             end,
+    {noreply, State2};
+    %% Result = (catch apply(Mod, Fun, Args)),
+    %% {_Reply, State2} = case Result of
+    %%                       {ok, Pid} when is_pid(Pid) ->
+    %%                           {Result, add_child(Pid, State)};
+    %%                       {ok, Pid, _Info} when is_pid(Pid) ->
+    %%                           {Result, add_child(Pid, State)};
+    %%                       ignore ->
+    %%                           {{ok, undefined}, State};
+    %%                       {error, _} ->
+    %%                           {Result, State};
+    %%                       Error ->
+    %%                           {{error, Error}, State}
+    %%                   end,
+    %% {noreply, State2};
+
+handle_cast({spawn, From, Fun}, State) ->
+    Pid = case Fun of
+              _ when is_function(Fun) ->
+                  spawn_link(Fun);
+              {Mod, Fun, Args} ->
+                  spawn_link(Mod, Fun, Args)
+          end,
+    State2 = add_child(Pid, State),
+    From ! {sidejob_supervisor_reply, Pid},
+    {noreply, State2};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

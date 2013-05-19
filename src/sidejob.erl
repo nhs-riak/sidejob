@@ -19,7 +19,8 @@
 %% -------------------------------------------------------------------
 -module(sidejob).
 -export([new_resource/3, new_resource/4, call/2, call/3, cast/2,
-         unbounded_cast/2]).
+         unbounded_call/3, unbounded_cast/2]).
+-export([save/2]).
 
 %%%===================================================================
 %%% API
@@ -40,12 +41,14 @@ new_resource(Name, Mod, Limit, Workers) ->
     WorkerNames = sidejob_worker:workers(Name, Workers),
     StatsName = sidejob_resource_stats:reg_name(Name),
     WorkerLimit = Limit div Workers,
+    WorkerETS = [ets:new(worker, [public]) || _ <- lists:seq(1,Workers)],
     sidejob_config:load_config(Name, [{width, Workers},
                                       {limit, Limit},
                                       {worker_limit, WorkerLimit},
                                       {ets, ETS},
                                       {stats_ets, StatsETS},
                                       {workers, list_to_tuple(WorkerNames)},
+                                      {worker_ets, list_to_tuple(WorkerETS)},
                                       {stats, StatsName}]),
     sidejob_sup:add_resource(Name, Mod).
 
@@ -87,9 +90,23 @@ cast(Name, Msg) ->
 %% @doc
 %% Perform an asynchronous cast to the specified resource, ignoring
 %% usage limits
+unbounded_call(Name, Msg, Timeout) ->
+    Worker = preferred_worker(Name),
+    gen_server:call(Worker, Msg, Timeout).
+
+%% @doc
+%% Perform an asynchronous cast to the specified resource, ignoring
+%% usage limits
 unbounded_cast(Name, Msg) ->
     Worker = preferred_worker(Name),
     gen_server:cast(Worker, Msg).
+
+save(Name, Item) ->
+    Width = Name:width(),
+    Scheduler = erlang:system_info(scheduler_id),
+    Worker = Scheduler rem Width, 
+    ETS = element(Worker+1, Name:worker_ets()),
+    ets:insert(ETS, Item).
 
 %%%===================================================================
 %%% Internal functions
