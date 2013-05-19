@@ -41,7 +41,12 @@ new_resource(Name, Mod, Limit, Workers) ->
     WorkerNames = sidejob_worker:workers(Name, Workers),
     StatsName = sidejob_resource_stats:reg_name(Name),
     WorkerLimit = Limit div Workers,
-    WorkerETS = [ets:new(worker, [public]) || _ <- lists:seq(1,Workers)],
+    WorkerETS = [begin
+                     Tab = ets:new(worker, [public]),
+                     ets:insert(Tab, [{usage, 0},
+                                      {full, 0}]),
+                     Tab
+                 end || _ <- lists:seq(1,Workers)],
     sidejob_config:load_config(Name, [{width, Workers},
                                       {limit, Limit},
                                       {worker_limit, WorkerLimit},
@@ -121,7 +126,8 @@ preferred_worker(Name) ->
 
 %% Find an available worker or return none if all workers at limit
 available(Name) ->
-    ETS = Name:ets(),
+    %% ETS = Name:ets(),
+    ETS = Name:worker_ets(),
     Width = Name:width(),
     Limit = Name:worker_limit(),
     Scheduler = erlang:system_info(scheduler_id),
@@ -145,15 +151,19 @@ available(Name, ETS, Width, Limit, X, End) ->
             worker_reg_name(Name, Worker)
     end.
 
-is_available(ETS, Limit, Worker) ->
-    case ets:lookup_element(ETS, {full, Worker}, 2) of
+is_available(WETS, Limit, Worker) ->
+    ETS = element(Worker+1, WETS),
+    %% case ets:lookup_element(ETS, {full, Worker}, 2) of
+    case ets:lookup_element(ETS, full, 2) of
         1 ->
             false;
         0 ->
-            Value = ets:update_counter(ETS, Worker, 1),
+            %% Value = ets:update_counter(ETS, Worker, 1),
+            Value = ets:update_counter(ETS, usage, 1),
             case Value >= Limit of
                 true ->
-                    ets:insert(ETS, {{full, Worker}, 1}),
+                    %% ets:insert(ETS, {{full, Worker}, 1}),
+                    ets:insert(ETS, {full, 1}),
                     false;
                 false ->
                     true
