@@ -381,18 +381,24 @@ pulse_instrument(File) ->
 -endif.
 
 -ifdef(PULSE).
-eqc_test_() ->
+eqc_test_skip() ->
     {timeout, 30,
      fun() ->
              ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_pulse()))))
      end
     }.
 -else.
-eqc_test_() ->
+eqc_par_test_skip() ->
     {timeout, 30,
      fun() ->
-             ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_seq())))),
              ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_par()))))
+     end
+    }.
+
+eqc_seq_test_() ->
+    {timeout, 30,
+     fun() ->
+             ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_seq()))))
      end
     }.
 -endif.

@@ -236,7 +236,7 @@ verbose()   -> eqc:check(eqc_statem:show_states(the_prop())).
 verbose(CE) -> eqc:check(eqc_statem:show_states(the_prop(), CE)).
 
 -ifdef(PULSE).
-eqc_test_() ->
+eqc_test_skip() ->
     {timeout, 30,
      fun() ->
              ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_pulse()))))
@@ -244,11 +244,17 @@ eqc_test_() ->
     }.
 
 -else.
-eqc_test_() ->
+eqc_par_test_skip() ->
     {timeout, 30,
      fun() ->
-             ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_seq())))),
              ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_par()))))
+     end
+    }.
+
+eqc_seq_test_() ->
+    {timeout, 30,
+     fun() ->
+             ?assert(eqc:quickcheck(eqc:testing_time(5, ?QC_OUT(prop_seq()))))
      end
     }.
 -endif.
