@@ -1,6 +1,6 @@
 %%% File        : sidejob_eqc.erl
 %%% Author      : Ulf Norell
-%%% Description : 
+%%% Description :
 %%% Created     : 13 May 2013 by Ulf Norell
 -module(sidejob_eqc).
 

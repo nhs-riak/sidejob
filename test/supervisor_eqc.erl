@@ -1,6 +1,6 @@
 %%% File        : supervisor_eqc.erl
 %%% Author      : Ulf Norell
-%%% Description : 
+%%% Description :
 %%% Created     : 15 May 2013 by Ulf Norell
 -module(supervisor_eqc).
 
