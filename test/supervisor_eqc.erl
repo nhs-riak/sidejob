@@ -236,6 +236,10 @@ verbose()   -> eqc:check(eqc_statem:show_states(the_prop())).
 verbose(CE) -> eqc:check(eqc_statem:show_states(the_prop(), CE)).
 
 -ifdef(PULSE).
+%% TODO - EQC pulse test has been disabled. It does not run
+%% successfully with rebar on RB1602_basho10 even at commit f901316
+%% where it was setup to run as an eunit test. Perhaps it ran
+%% successfully on a previous version of OTP.
 eqc_test_skip() ->
     {timeout, 30,
      fun() ->
@@ -244,6 +248,10 @@ eqc_test_skip() ->
     }.
 
 -else.
+%% TODO - Test has been disabled. It does not run successfully with
+%% rebar on RB1602_basho10 even at commit f901316 where it was setup
+%% to run as an eunit test. Perhaps it ran successfully on a previous
+%% version of OTP.
 eqc_par_test_skip() ->
     {timeout, 30,
      fun() ->
