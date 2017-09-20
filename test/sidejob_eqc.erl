@@ -402,7 +402,7 @@ pulse_instrument(File) ->
   ReplaceModules =
     [{Mod, list_to_atom(lists:concat([pulse_, Mod]))}
       || Mod <- Modules],
-  {ok, Mod} = compile:file(File, [{d, 'PULSE', true},
+  {ok, Mod} = compile:file(File, [{d, 'PULSE', true}, {d, 'EQC', true},
                                   {parse_transform, pulse_instrument},
                                   {pulse_side_effect, [{ets, '_', '_'}]},
                                   {pulse_replace_module, ReplaceModules}]),
