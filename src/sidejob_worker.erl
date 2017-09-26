@@ -206,8 +206,10 @@ update_usage(State=#state{ets=ETS, width=Width, limit=Limit}) ->
                false ->
                    0
            end,
-    ets:insert(ETS, [{usage, Usage},
-                     {full, Full}]),
+
+    sidejob_ets_lock:update_usage(ETS, [{usage, Usage}, {full, Full}]),
+    %% ets:insert(ETS, [{usage, Usage},
+    %%                  {full, Full}]),
     State.
 
 current_usage(#state{usage=default}) ->

@@ -143,18 +143,27 @@ available(Name, WorkerETS, Width, Limit, X, End) ->
 
 is_available(WorkerETS, Limit, Worker) ->
     ETS = element(Worker+1, WorkerETS),
-    case ets:lookup_element(ETS, full, 2) of
-        1 ->
-            false;
-        0 ->
-            Value = ets:update_counter(ETS, usage, 1),
-            if Value >= Limit ->
-                    ets:insert(ETS, {full, 1});
-               true ->
-                    ok
-            end,
-            true
-    end.
+    EtsLockNameBin = <<"etz_", (atom_to_binary(ETS, latin1))/binary>>,
+    EtsLockName = binary_to_atom(EtsLockNameBin, latin1),
+    gen_server:call(EtsLockName, {available, Limit}).
+    %% Avail = case ets:lookup_element(ETS, full, 2) of
+    %%             1 ->
+    %%                 false;
+    %%             0 ->
+    %%                 %% @TODO QUESTION: is this racey? Can two processes update
+    %%                 %% the counter (and break the limit) before either writes
+    %%                 %% full? Example p1 reads full==0, p2 reads full==0, p1
+    %%                 %% updates counter (now usage==limit) and sets full but p2
+    %%                 %% also updates usage and sets full=1)
+    %%                 Value = ets:update_counter(ETS, usage, 1),
+    %%                 if Value >= Limit ->
+    %%                         ets:insert(ETS, {full, 1});
+    %%                    true ->
+    %%                         ok
+    %%                 end,
+    %%                 true
+    %%         end,
+    %%    io:format("worker ~p was full ~p is full ~p value? ~p Limit ~p~n", [Worker+1, WasFull, IsFull, Value, Limit]),
 
 worker_reg_name(Name, Id) ->
     element(Id+1, Name:workers()).

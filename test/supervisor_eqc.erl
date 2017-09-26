@@ -178,17 +178,20 @@ prop_seq() ->
   end))).
 
 prop_par() ->
-  ?FORALL(Cmds, parallel_commands(?MODULE),
-  ?TIMEOUT(?TIMEOUT,
-  % ?SOMETIMES(4,
-  begin
-    cleanup(),
-    HSR={SeqH, ParH, R} = run_parallel_commands(?MODULE, Cmds),
-    kill_all_pids({SeqH, ParH}),
-    aggregate(command_names(Cmds),
-    pretty_commands(?MODULE, Cmds, HSR,
-      R == ok))
-  end)).
+    ?FORALL(Cmds, parallel_commands(?MODULE),
+            ?LET(Shrinking, parameter(shrinking, false),
+                 ?ALWAYS(if Shrinking -> 20;
+                            true -> 1
+                         end,
+                         ?TIMEOUT(?TIMEOUT,
+                                  begin
+                                      cleanup(),
+                                      HSR={SeqH, ParH, R} = run_parallel_commands(?MODULE, Cmds),
+                                      kill_all_pids({SeqH, ParH}),
+                                      aggregate(command_names(Cmds),
+                                                pretty_commands(?MODULE, Cmds, HSR,
+                                                                R == ok))
+                                  end)))).
 
 -ifdef(PULSE).
 prop_pulse() ->

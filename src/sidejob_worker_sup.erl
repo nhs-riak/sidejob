@@ -48,4 +48,13 @@ init([Name, NumWorkers, StatsName, Mod]) ->
                       [WorkerName, Name, Id, WorkerName, StatsName, Mod]},
                      permanent, 5000, worker, [sidejob_worker]}
                 end || Id <- lists:seq(1, NumWorkers)],
-    {ok, {{one_for_one, 10, 10}, Children}}.
+    EtsLocks = [begin
+                    WorkerName = sidejob_worker:reg_name(Name, Id),
+                    EtsLockNameBin = <<"etz_", (atom_to_binary(WorkerName, latin1))/binary>>,
+                    EtsLockName = binary_to_atom(EtsLockNameBin, latin1),
+                    {EtsLockName,
+                     {sidejob_ets_lock, start_link,
+                      [EtsLockName, WorkerName]},
+                     permanent, 5000, worker, [sidejob_ets_lock]}
+                end || Id <- lists:seq(1, NumWorkers)],
+    {ok, {{one_for_one, 10, 10}, Children ++ EtsLocks}}.
