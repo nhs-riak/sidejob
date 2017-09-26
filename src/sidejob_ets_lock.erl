@@ -68,20 +68,28 @@ init([Name, ETS]) ->
     {ok, State}.
 
 handle_call({available, Limit}, _From, State) ->
-    #state{ets=ETS, name=_Name} = State,
-    {WasFull, IsFull, Value} = case ets:lookup_element(ETS, full, 2) of
-                                   1 ->
-                                       {true, true, unkown};
-                                   0 ->
-                                       Val = ets:update_counter(ETS, usage, 1),
-                                       if Val >= Limit ->
-                                               ets:insert(ETS, {full, 1});
-                                          true ->
-                                               ok
-                                       end,
-                                       {false, Val >= Limit, Val}
-                  end,
-    {reply, {WasFull, IsFull, Value}, State};
+    #state{ets=ETS, name=Name} = State,
+    Res={_WasFull, _IsFull, _Value} = case ets:lookup_element(ETS, full, 2) of
+                                          1 ->
+                                              {true, true, unkown};
+                                          0 ->
+                                              %% Usage = ets:lookup_element(ETS, usage, 2),
+                                              %% pulse:format("usage ~p~n", [Usage]),
+                                              %% Val = Usage +1,
+                                              %% ets:insert(ETS, {usage, Val}),
+                                              %% Usage2 = ets:lookup_element(ETS, usage, 2),
+                                              %% pulse:format("usage2 ~p~n", [Usage2]),
+                                              Value = ets:update_counter(ETS, usage, 1),
+                                              if Value >= Limit ->
+                                                      pulse:format("~p ~p updating to full!~n", [Name, self()]),
+                                                      ets:insert(ETS, {full, 1}),
+                                                      pulse:format("Full value is ~p~n", [ets:lookup_element(ETS, full, 2)]);
+                                                 true ->
+                                                      ok
+                                              end,
+                                              {false, Value >= Limit, Value}
+                                      end,
+    {reply, Res, State};
 handle_call({update_usage, Usage}, _From, State) ->
     #state{ets=ETS, name=_Name} = State,
     ets:insert(ETS, Usage),

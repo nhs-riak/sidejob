@@ -126,7 +126,8 @@ available(Name) ->
         true ->
             worker_reg_name(Name, Worker);
         false ->
-            available(Name, WorkerETS, Width, Limit, Worker+1, Worker)
+            io:format("not available for worker ~p trying ~p~n", [Worker, Worker+1]),
+            available(Name, WorkerETS, Width, Limit, (Worker+1) rem Width, Worker)
     end.
 
 available(Name, _WorkerETS, _Width, _Limit, End, End) ->
@@ -145,7 +146,9 @@ is_available(WorkerETS, Limit, Worker) ->
     ETS = element(Worker+1, WorkerETS),
     EtsLockNameBin = <<"etz_", (atom_to_binary(ETS, latin1))/binary>>,
     EtsLockName = binary_to_atom(EtsLockNameBin, latin1),
-    gen_server:call(EtsLockName, {available, Limit}).
+    {WasFull, _IsFull, _Value} = gen_server:call(EtsLockName, {available, Limit}),
+%%    io:format("worker ~p was full ~p is full ~p new value? ~p Limit ~p~n", [EtsLockName, WasFull, IsFull, Value, Limit]),
+    not WasFull.
     %% Avail = case ets:lookup_element(ETS, full, 2) of
     %%             1 ->
     %%                 false;
@@ -163,7 +166,6 @@ is_available(WorkerETS, Limit, Worker) ->
     %%                 end,
     %%                 true
     %%         end,
-    %%    io:format("worker ~p was full ~p is full ~p value? ~p Limit ~p~n", [Worker+1, WasFull, IsFull, Value, Limit]),
 
 worker_reg_name(Name, Id) ->
     element(Id+1, Name:workers()).
